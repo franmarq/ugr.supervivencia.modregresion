@@ -1,0 +1,102 @@
+---
+title: "UGR Supervivencia Tema5"
+author: "franmarq@gmail.com"
+date: '2022-12-08'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(dplyr)
+library(forcats)
+library(survival)
+library(survminer)
+```
+
+Lectura de la data
+
+```{r data}
+empleo<-read.csv("empleo.csv",header = TRUE)
+str(empleo)
+summary(empleo)
+```
+
+preparacion de la data 
+
+```{r prepdata}
+# Creamos la nueva variable
+empleo <- empleo %>%
+           mutate(Sexo = as.factor(Sexo),"HOMBRE" = 1, "MUJER" = 2,
+                   Sector = as.factor(Sector),"AGRICULTURA" = 1, "CONSTRUCCION" = 2,
+                                       "OTROS" = 4,"SERVICIOS" = 3)
+```
+
+ajuste del modelo
+
+```{r modelosurv}
+# Ajuste del modelo
+modelo <- coxph(Surv(Tiempo, Censura) ~ Sexo, data = empleo)
+# Resumen del modelo ajustado
+modelo
+```
+
+```{r grafcoef}
+
+# Gráfico de la relevancia de los coeficientes
+ggforest(modelo)
+```
+
+```{r plotsurv}
+# Gráfico de supervivencia
+ggadjustedcurves(modelo, data=empleo, 
+                 variable = "Sexo", 
+                 palette = "lancet")
+
+# Gráfico con intervalos de confianza
+sex.df <- with(empleo, data.frame(Sexo = c("HOMBRE", "MUJER")))
+ggsurvplot(survfit(modelo,newdata = sex.df), data = empleo,
+           palette = "lancet",
+           conf.int = TRUE, 
+           conf.int.style = "step",
+           legend.labs=c("HOMBRE", "MUJER"))
+
+```
+
+
+El hazard rate asociado con le factor (columna exp(coef)) es menor que 1 lo que indica que las mujeres tienen más supervivencia que los hombres. Además el test de bondad de ajuste del modelo (“likelihood ratio test”) no resulta significativo indicando que el sexo no contribuye claramente a explicar la supervivencia de los sujetos del estudio. Por esta razon ahora evaluamos un modelo basado en las categorias de empleo
+
+
+
+```{r prepdata2}
+# Creamos la nueva variable
+empleo2 <- empleo %>%
+           mutate(Sexo = as.numeric(as.factor(Sexo),"HOMBRE" = 1, "MUJER" = 2),
+                   Sector = as.numeric(as.factor(Sector),"AGRICULTURA" = 1, "CONSTRUCCION" = 2,
+                                       "OTROS" = 4,"SERVICIOS" = 3))
+```
+
+
+```{r modelosurv2}
+# Ajuste del modelo
+modelo2 <- coxph(Surv(Tiempo, Censura) ~ Sector+Sexo+Edad, data = empleo2)
+# Resumen del modelo ajustado
+
+modelo2
+summary(modelo2)
+```
+
+A continuación se muestran gráficamente los intervalos de confianza y pvalores asociados con le modelo estimado.
+
+
+
+```{r garfcox}
+
+ggcoxzph(cox.zph(modelo2))
+ggcoxdiagnostics(modelo2, type = "martingale")
+ggcoxdiagnostics(modelo2, type = "dfbeta")
+
+```
+
+
+El valor-p no es menor a .05 por lo que no podemos rechazar la hip�tesis de riesgos proporcionales.
